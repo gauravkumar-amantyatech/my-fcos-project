@@ -21,12 +21,14 @@ jobs:
         sudo apt update
         sudo apt install -y podman git curl
 
+    - name: Make build script executable
+      run: chmod +x ./build-script.sh
+
     - name: Run CoreOS Assembler Build
       env:
         COSA_NO_KVM: "1"
-      run: |
-        chmod +x ./build-script.sh
-        ./build-script.sh
+      run: ./build-script.sh
+      working-directory: /github/workspace
 
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4
