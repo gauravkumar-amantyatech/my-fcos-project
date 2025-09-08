@@ -2,16 +2,18 @@ name: Build Fedora CoreOS Image
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   fcos-build:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Install Dependencies
@@ -23,25 +25,27 @@ jobs:
         env:
           COSA_NO_KVM: "1"
         run: |
-          # Use unprivileged podman mode
-          podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z quay.io/coreos-assembler/coreos-assembler:latest \
-            init https://github.com/coreos/fedora-coreos-config
+          podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z \
+            quay.io/coreos-assembler/coreos-assembler:latest \
+            init --force https://github.com/coreos/fedora-coreos-config
 
       - name: Fetch Source
-        env:
-          COSA_NO_KVM: "1"
         run: |
-          podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z quay.io/coreos-assembler/coreos-assembler:latest fetch
+          podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z \
+            quay.io/coreos-assembler/coreos-assembler:latest fetch
 
-      - name: Build OSTree & Images
-        env:
-          COSA_NO_KVM: "1"
+      - name: Build FCOS Image
         run: |
-          podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z quay.io/coreos-assembler/coreos-assembler:latest build
-          podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z quay.io/coreos-assembler/coreos-assembler:latest buildextend-qemu
+          podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z \
+            quay.io/coreos-assembler/coreos-assembler:latest build
+
+      - name: Build QEMU Extension (optional)
+        run: |
+          podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z \
+            quay.io/coreos-assembler/coreos-assembler:latest buildextend-qemu
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: fcos-build-output
-          path: builds/latest/x86_64/
+          name: fcos-qemu-images
+          path: builds/latest/x86_64/*
