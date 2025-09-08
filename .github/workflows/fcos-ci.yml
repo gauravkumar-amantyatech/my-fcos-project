@@ -29,7 +29,7 @@ jobs:
         ./build-script.sh
 
     - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: fcos-build-output
         path: ./builds/latest/x86_64/
