@@ -16,19 +16,21 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
+    - name: Verify repo files
+      run: ls -lh
+
     - name: Install Dependencies
       run: |
         sudo apt update
         sudo apt install -y podman git curl
 
-    - name: Make build script executable
-      run: chmod +x ./build-script.sh
-
     - name: Run CoreOS Assembler Build
+      working-directory: ${{ github.workspace }}
       env:
         COSA_NO_KVM: "1"
-      run: ./build-script.sh
-      working-directory: /github/workspace
+      run: |
+        chmod +x ./build-script.sh
+        ./build-script.sh
 
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4
