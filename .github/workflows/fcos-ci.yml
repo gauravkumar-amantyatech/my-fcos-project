@@ -1,39 +1,45 @@
-name: Build Fedora CoreOS Image
+name: Build FCOS Image (Hosted Runner Friendly)
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
-  fcos-build:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-22.04
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-
-    - name: Verify repo files
-      run: ls -lh
+    - name: Checkout Code
+      uses: actions/checkout@v4
 
     - name: Install Dependencies
       run: |
-        sudo apt update
-        sudo apt install -y podman git curl
+        sudo apt-get update
+        sudo apt-get install -y podman qemu-utils curl
 
-    - name: Run CoreOS Assembler Build
-      working-directory: ${{ github.workspace }}
+    - name: Prepare Writable Directories
+      run: |
+        mkdir -p builds/latest/x86_64
+        chmod -R 777 builds
+
+    - name: Pull CoreOS Assembler Image
+      run: podman pull quay.io/coreos-assembler/coreos-assembler:latest
+
+    - name: Run FCOS Build (Unprivileged)
       env:
         COSA_NO_KVM: "1"
       run: |
-        chmod +x ./build-script.sh
-        ./build-script.sh
+        podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z quay.io/coreos-assembler/coreos-assembler:latest init
+        podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z quay.io/coreos-assembler/coreos-assembler:latest fetch
+        podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z quay.io/coreos-assembler/coreos-assembler:latest build
+        podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z quay.io/coreos-assembler/coreos-assembler:latest buildextend-qemu
 
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: fcos-build-output
-        path: ./builds/latest/x86_64/
+        name: fcos-qcow2
+        path: builds/latest/x86_64/fedora-coreos-*.qcow2
+
+        
