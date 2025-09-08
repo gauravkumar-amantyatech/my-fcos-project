@@ -1,4 +1,4 @@
-name: Build FCOS Image (Hosted Runner Friendly)
+name: Build Fedora CoreOS Image
 
 on:
   push:
@@ -7,39 +7,41 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  fcos-build:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y podman qemu-utils curl
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman git curl
 
-    - name: Prepare Writable Directories
-      run: |
-        mkdir -p builds/latest/x86_64
-        chmod -R 777 builds
+      - name: Initialize FCOS Build
+        env:
+          COSA_NO_KVM: "1"
+        run: |
+          # Use unprivileged podman mode
+          podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z quay.io/coreos-assembler/coreos-assembler:latest \
+            init https://github.com/coreos/fedora-coreos-config
 
-    - name: Pull CoreOS Assembler Image
-      run: podman pull quay.io/coreos-assembler/coreos-assembler:latest
+      - name: Fetch Source
+        env:
+          COSA_NO_KVM: "1"
+        run: |
+          podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z quay.io/coreos-assembler/coreos-assembler:latest fetch
 
-    - name: Run FCOS Build (Unprivileged)
-      env:
-        COSA_NO_KVM: "1"
-      run: |
-        podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z quay.io/coreos-assembler/coreos-assembler:latest init
-        podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z quay.io/coreos-assembler/coreos-assembler:latest fetch
-        podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z quay.io/coreos-assembler/coreos-assembler:latest build
-        podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z quay.io/coreos-assembler/coreos-assembler:latest buildextend-qemu
+      - name: Build OSTree & Images
+        env:
+          COSA_NO_KVM: "1"
+        run: |
+          podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z quay.io/coreos-assembler/coreos-assembler:latest build
+          podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z quay.io/coreos-assembler/coreos-assembler:latest buildextend-qemu
 
-    - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: fcos-qcow2
-        path: builds/latest/x86_64/fedora-coreos-*.qcow2
-
-        
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fcos-build-output
+          path: builds/latest/x86_64/
