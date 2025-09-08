@@ -1,0 +1,35 @@
+name: Build Fedora CoreOS Image
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  fcos-build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install Dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y podman git curl
+
+    - name: Run CoreOS Assembler Build
+      env:
+        COSA_NO_KVM: "1"
+      run: |
+        chmod +x ./build-script.sh
+        ./build-script.sh
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: fcos-build-output
+        path: ./builds/latest/x86_64/
