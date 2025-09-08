@@ -12,40 +12,50 @@ jobs:
   fcos-build:
     runs-on: ubuntu-22.04
 
+    env:
+      COSA_NO_KVM: "1"
+
     steps:
-      - name: Checkout Repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      - name: Install Podman & Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y podman git curl
+          sudo apt-get install -y podman git curl qemu-utils
+
+      - name: Prepare Build Workspace
+        run: |
+          mkdir -p /tmp/fcos
+          echo "Using /tmp/fcos as writable workspace for unprivileged podman"
 
       - name: Initialize FCOS Build
-        env:
-          COSA_NO_KVM: "1"
         run: |
-          podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z \
+          podman run --rm --userns=keep-id \
+            -v /tmp/fcos:/srv:z \
             quay.io/coreos-assembler/coreos-assembler:latest \
             init --force https://github.com/coreos/fedora-coreos-config
 
-      - name: Fetch Source
+      - name: Fetch FCOS Sources
         run: |
-          podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z \
+          podman run --rm --userns=keep-id \
+            -v /tmp/fcos:/srv:z \
             quay.io/coreos-assembler/coreos-assembler:latest fetch
 
-      - name: Build FCOS Image
+      - name: Build FCOS OSTree & Disk Images
         run: |
-          podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z \
+          podman run --rm --userns=keep-id \
+            -v /tmp/fcos:/srv:z \
             quay.io/coreos-assembler/coreos-assembler:latest build
 
-      - name: Build QEMU Extension (optional)
+      - name: "Optional: Build QEMU Image (will skip on hosted runners)"
         run: |
-          podman run --rm --userns=keep-id -v ${GITHUB_WORKSPACE}:/srv:z \
-            quay.io/coreos-assembler/coreos-assembler:latest buildextend-qemu
+          podman run --rm --userns=keep-id \
+            -v /tmp/fcos:/srv:z \
+            quay.io/coreos-assembler/coreos-assembler:latest buildextend-qemu || echo "Skipping QEMU step on hosted runner"
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: fcos-qemu-images
-          path: builds/latest/x86_64/*
+          name: fcos-qcow2
+          path: /tmp/fcos/builds/latest/x86_64/fedora-coreos-*.qcow2
